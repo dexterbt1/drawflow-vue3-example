@@ -15,6 +15,10 @@
     </el-aside>
     <el-main>
         <div id="drawflow" @drop="drop($event)" @dragover="allowDrop($event)"></div>
+        <div id="canvas-toolbar">
+          <el-button @click="zoomIn">+</el-button>
+          <el-button @click="zoomOut">-</el-button>
+        </div>
     </el-main>
   </el-container>
 </el-container>
@@ -35,16 +39,19 @@
     </template>
   </el-dialog>
 </template>
+
 <script>
+
+import debounce from "lodash/debounce"
 
 import Drawflow from 'drawflow'
 import styleDrawflow from 'drawflow/dist/drawflow.min.css'
 import style from '../assets/style.css' 
 import { onMounted, shallowRef, h, getCurrentInstance, render, readonly, ref } from 'vue'
-import Node1 from './nodes/node1.vue'
-import Node2 from './nodes/node2.vue'
-import Node3 from './nodes/node3.vue'
 
+import ApiCallNode from './nodes/ApiCallNode.vue'
+import ScriptNode from './nodes/ScriptNode.vue'
+import ConsoleLogNode from './nodes/ConsoleLogNode.vue'
 
 
 export default {
@@ -54,21 +61,21 @@ export default {
         {
             name: 'Get/Post',
             color: '#49494970',
-            item: 'Node1',
+            item: 'ApiCallNode',
             input:0,
             output:1
         },
         {
             name: 'Script',
             color: 'blue',
-            item: 'Node2',
+            item: 'ScriptNode',
             input:1,
             output:2
         },
          {
             name: 'console.log',
             color: '#ff9900',
-            item: 'Node3',
+            item: 'ConsoleLogNode',
             input:1,
             output:0
         },
@@ -111,6 +118,19 @@ export default {
       ev.preventDefault();
     }
 
+    const panzoomDebug = (ed, ev) => {
+      console.log('panzoomDebug', [ed.canvas_x, ed.canvas_y], ed.zoom);
+    }
+
+    const zoomIn = () => {
+      editor.value.zoom_in();
+    }
+
+    const zoomOut = () => {
+      editor.value.zoom_out();
+    }
+
+
    let mobile_item_selec = '';
    let mobile_last_move = null;
    function positionMobile(ev) {
@@ -138,20 +158,127 @@ export default {
         
        const id = document.getElementById("drawflow");
        editor.value = new Drawflow(id, Vue, internalInstance.appContext.app._context);
+
+       // NOTE: monkey patch, taken from https://github.com/jerosoler/Drawflow/issues/88
+       editor.value.translate_to = function(x, y, zoom){
+         this.canvas_x = x;
+         this.canvas_y = y;
+         let storedZoom = zoom;
+         this.zoom = 1;
+         this.precanvas.style.transform = "translate("+this.canvas_x+"px, "+this.canvas_y+"px) scale("+this.zoom+")";
+         this.zoom = storedZoom;
+         this.zoom_last_value = 1;
+         this.zoom_refresh();
+       }
+
        editor.value.start();
        
-       editor.value.registerNode('Node1', Node1, {}, {});
-       editor.value.registerNode('Node2', Node2, {}, {});
-       editor.value.registerNode('Node3', Node3, {}, {});
+       editor.value.registerNode('ApiCallNode', ApiCallNode, {}, {});
+       editor.value.registerNode('ScriptNode', ScriptNode, {}, {});
+       editor.value.registerNode('ConsoleLogNode', ConsoleLogNode, {}, {});
 
-       editor.value.import({"drawflow":{"Home":{"data":{"5":{"id":5,"name":"Node2","data":{"script":"(req,res) => {\n console.log(req);\n}"},"class":"Node2","html":"Node2","typenode":"vue","inputs":{"input_1":{"connections":[{"node":"6","input":"output_1"}]}},"outputs":{"output_1":{"connections":[]},"output_2":{"connections":[]}},"pos_x":1000,"pos_y":117},"6":{"id":6,"name":"Node1","data":{"url":"localhost/add", "method": "post"},"class":"Node1","html":"Node1","typenode":"vue","inputs":{},"outputs":{"output_1":{"connections":[{"node":"5","output":"input_1"}]}},"pos_x":137,"pos_y":89}}}}})
+       editor.value.on('zoom', (ev) => { panzoomDebug(editor.value, ev) });
+       editor.value.on('translate', debounce((ev) => { panzoomDebug(editor.value, ev) }, 500));
+
+       //editor.value.import({"drawflow":{"Home":{"data":{"5":{"id":5,"name":"ScriptNode","data":{"script":"(req,res) => {\n console.log(req);\n}"},"class":"ScriptNode","html":"ScriptNode","typenode":"vue","inputs":{"input_1":{"connections":[{"node":"6","input":"output_1"}]}},"outputs":{"output_1":{"connections":[]},"output_2":{"connections":[]}},"pos_x":1000,"pos_y":117},"6":{"id":6,"name":"ApiCallNode","data":{"url":"localhost/add", "method": "post"},"class":"ApiACallNode","html":"ApiCallNode","typenode":"vue","inputs":{},"outputs":{"output_1":{"connections":[{"node":"5","output":"input_1"}]}},"pos_x":137,"pos_y":89}}}}})
+
+      var initialBP = {
+        "drawflow": {
+          "Home": {
+            "data": {
+              "5": {
+                "id": 5,
+                "name": "ScriptNode",
+                "data": {
+                  "script": "(req,res) => {\n console.log(req);\n}"
+                },
+                "class": "ScriptNode",
+                "html": "ScriptNode",
+                "typenode": "vue",
+                "inputs": {
+                  "input_1": {
+                    "connections": [
+                      {
+                        "node": "6",
+                        "input": "output_1"
+                      }
+                    ]
+                  }
+                },
+                "outputs": {
+                  "output_1": {
+                    "connections": [
+                      {
+                        "node": "7",
+                        "output": "input_1"
+                      }
+                    ]
+                  },
+                  "output_2": {
+                    "connections": []
+                  }
+                },
+                "pos_x": 396,
+                "pos_y": 304
+              },
+              "6": {
+                "id": 6,
+                "name": "ApiCallNode",
+                "data": {
+                  "url": "localhost/add",
+                  "method": "post"
+                },
+                "class": "ApiACallNode",
+                "html": "ApiCallNode",
+                "typenode": "vue",
+                "inputs": {},
+                "outputs": {
+                  "output_1": {
+                    "connections": [
+                      {
+                        "node": "5",
+                        "output": "input_1"
+                      }
+                    ]
+                  }
+                },
+                "pos_x": -85,
+                "pos_y": 122
+              },
+              "7": {
+                "id": 7,
+                "name": "ConsoleLogNode",
+                "data": {},
+                "class": "ConsoleLogNode",
+                "html": "ConsoleLogNode",
+                "typenode": "vue",
+                "inputs": {
+                  "input_1": {
+                    "connections": [
+                      {
+                        "node": "5",
+                        "input": "output_1"
+                      }
+                    ]
+                  }
+                },
+                "outputs": {},
+                "pos_x": 781.5714285714286,
+                "pos_y": 171
+              }
+            }
+          }
+        }
+      }
+      editor.value.import(initialBP);
+      editor.value.translate_to(23, -40, 0.7);
   })
 
   return {
-    exportEditor, listNodes, drag, drop, allowDrop, dialogVisible, dialogData
+    exportEditor, listNodes, drag, drop, allowDrop, dialogVisible, dialogData, zoomIn, zoomOut
   }
 
-  }
+  } // setup
 }
 
 </script>
@@ -195,6 +322,18 @@ export default {
   background: #2b2c30;
   background-size: 20px 20px;
   background-image: radial-gradient(#494949 1px, transparent 1px);
-  
+}
+
+.el-main {
+  position: relative;
+}
+
+#canvas-toolbar {
+  position: absolute;
+  bottom: 1rem;
+  right: 1rem;
+}
+#canvas-toolbar button {
+  padding: 0px 16px 0 14px;
 }
 </style>

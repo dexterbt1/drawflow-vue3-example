@@ -10,6 +10,7 @@
     "@element-plus/icons": "^0.0.11",
     "drawflow": "^0.0.51",
     "element-plus": "^1.1.0-beta.24",
+    "lodash": "^4.17.21",
     "vue": "^3.2.16"
   },
   "devDependencies": {
